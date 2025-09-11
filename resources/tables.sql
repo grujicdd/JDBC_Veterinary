@@ -1,197 +1,297 @@
-DROP TABLE actor CASCADE CONSTRAINTS;
+DROP TABLE IF EXISTS VacSideEff CASCADE;
+DROP TABLE IF EXISTS PetVac CASCADE;
+DROP TABLE IF EXISTS BreedGen CASCADE;
+DROP TABLE IF EXISTS Prescribed CASCADE;
+DROP TABLE IF EXISTS Diagnosis CASCADE;
+DROP TABLE IF EXISTS Appointment CASCADE;
+DROP TABLE IF EXISTS Dog CASCADE;
+DROP TABLE IF EXISTS Cat CASCADE;
+DROP TABLE IF EXISTS Pet CASCADE;
+DROP TABLE IF EXISTS GenPredisp CASCADE;
+DROP TABLE IF EXISTS SideEffect CASCADE;
+DROP TABLE IF EXISTS Vaccine CASCADE;
+DROP TABLE IF EXISTS Medication CASCADE;
+DROP TABLE IF EXISTS Veterinarian CASCADE;
+DROP TABLE IF EXISTS Breed CASCADE;
+DROP TABLE IF EXISTS Owner CASCADE;
 
-DROP TABLE assignment CASCADE CONSTRAINTS;
-
-DROP TABLE country CASCADE CONSTRAINTS;
-
-DROP TABLE department CASCADE CONSTRAINTS;
-
-DROP TABLE employee CASCADE CONSTRAINTS;
-
-DROP TABLE role CASCADE CONSTRAINTS;
-
-DROP TABLE place CASCADE CONSTRAINTS;
-
-DROP TABLE play CASCADE CONSTRAINTS;
-
-DROP TABLE scene CASCADE CONSTRAINTS;
-
-DROP TABLE showing CASCADE CONSTRAINTS;
-
-DROP TABLE technician CASCADE CONSTRAINTS;
-
-DROP TABLE theatre CASCADE CONSTRAINTS;
-
-DROP TABLE theatremanager CASCADE CONSTRAINTS;
-
-CREATE TABLE actor (
-    id_ac           INTEGER NOT NULL,
-    name_ac         VARCHAR2(32 CHAR) NOT NULL,
-    dob_ac          DATE,
-    status_ac       CHAR(1),
-    salary_ac       NUMBER(10, 2) NOT NULL,
-    bonus_ac        NUMBER(10, 2),
-    theatre_id_th   INTEGER
+-- Create Owner table
+CREATE TABLE Owner (
+    ownerID INTEGER NOT NULL,
+    firstName VARCHAR(64) NOT NULL,
+    lastName VARCHAR(64) NOT NULL,
+    phoneNumber VARCHAR(64) NOT NULL,
+    birthDate DATE
 );
 
-ALTER TABLE actor ADD CONSTRAINT actor_pk PRIMARY KEY ( id_ac );
+ALTER TABLE Owner 
+    ADD CONSTRAINT Owner_PK PRIMARY KEY (ownerID);
 
-CREATE TABLE assignment (
-    id_as          INTEGER NOT NULL,
-    honorar_as     NUMBER(10, 2) NOT NULL,
-    startdate_as   DATE NOT NULL,
-    enddate_as     DATE NOT NULL,
-    actor_id_ac    INTEGER NOT NULL,
-    role_id_ro     INTEGER NOT NULL
+-- Create Breed table
+CREATE TABLE Breed (
+    breedID INTEGER NOT NULL,
+    breedName VARCHAR(100) NOT NULL
 );
 
-ALTER TABLE assignment ADD CONSTRAINT assignment_pk PRIMARY KEY ( id_as );
+ALTER TABLE Breed 
+    ADD CONSTRAINT Breed_PK PRIMARY KEY (breedID);
 
-CREATE TABLE country (
-    id_cn     INTEGER NOT NULL,
-    name_cn   VARCHAR2(32 CHAR) NOT NULL
+-- Create Pet table
+CREATE TABLE Pet (
+    petID INTEGER NOT NULL,
+    name VARCHAR(64) NOT NULL,
+    birthYear INTEGER NOT NULL,
+    species VARCHAR(3) NOT NULL CHECK (species IN ('Cat', 'Dog')),
+    Owner_ownerID INTEGER,
+    Breed_breedID INTEGER NOT NULL
 );
 
-ALTER TABLE country ADD CONSTRAINT country_pk PRIMARY KEY ( id_cn );
+ALTER TABLE Pet 
+    ADD CONSTRAINT Pet_PK PRIMARY KEY (petID);
 
-CREATE TABLE department (
-    id_dpt          INTEGER NOT NULL,
-    name_dp         VARCHAR2(32 CHAR) NOT NULL,
-    theatre_id_th   INTEGER NOT NULL
+-- Create Dog table (inheritance)
+CREATE TABLE Dog (
+    petID INTEGER NOT NULL,
+    sterilized INTEGER,
+    trainingLevel VARCHAR(16)
 );
 
-ALTER TABLE department ADD CONSTRAINT department_pk PRIMARY KEY ( id_dpt );
+ALTER TABLE Dog 
+    ADD CONSTRAINT Dog_PK PRIMARY KEY (petID);
 
-CREATE TABLE employee (
-    id_em               INTEGER NOT NULL,
-    name_em             VARCHAR2(32 CHAR) NOT NULL,
-    surname_em          VARCHAR2(32 CHAR) NOT NULL,
-    salary_em           NUMBER(10, 2) NOT NULL,
-    type_em             VARCHAR2(30 CHAR) NOT NULL,
-    department_id_dpt   INTEGER NOT NULL
+-- Create Cat table (inheritance)
+CREATE TABLE Cat (
+    petID INTEGER NOT NULL,
+    sterilized INTEGER
 );
 
-ALTER TABLE employee ADD CONSTRAINT employee_pk PRIMARY KEY ( id_em );
+ALTER TABLE Cat 
+    ADD CONSTRAINT Cat_PK PRIMARY KEY (petID);
 
-CREATE TABLE role (
-    id_ro        INTEGER NOT NULL,
-    name_ro      VARCHAR2(64 CHAR) NOT NULL,
-    gender_ro    CHAR(1 CHAR) NOT NULL,
-    type_ro      VARCHAR2(32 CHAR) NOT NULL,
-    play_id_pl   INTEGER NOT NULL
+-- Create Veterinarian table (self-referencing for hierarchy)
+CREATE TABLE Veterinarian (
+    VetID INTEGER NOT NULL,
+    firstName VARCHAR(64) NOT NULL,
+    lastName VARCHAR(64) NOT NULL,
+    phoneNumber VARCHAR(64) NOT NULL,
+    Veterinarian_VetID INTEGER
 );
 
-ALTER TABLE role ADD CONSTRAINT role_pk PRIMARY KEY ( id_ro );
+ALTER TABLE Veterinarian 
+    ADD CONSTRAINT Veterinarian_PK PRIMARY KEY (VetID);
 
-CREATE TABLE place (
-    id_pl           INTEGER NOT NULL,
-    name_pl         VARCHAR2(32 CHAR) NOT NULL,
-    country_id_cn   INTEGER NOT NULL
+-- Create Appointment table with appointmentID as primary key
+CREATE TABLE Appointment (
+    appointmentID INTEGER NOT NULL,
+    Pet_petID INTEGER NOT NULL,
+    Veterinarian_VetID INTEGER NOT NULL,
+    appDateTime TIMESTAMP NOT NULL,
+    reason VARCHAR(64)
 );
 
-ALTER TABLE place ADD CONSTRAINT place_pk PRIMARY KEY ( id_pl );
+ALTER TABLE Appointment 
+    ADD CONSTRAINT Appointment_PK PRIMARY KEY (appointmentID);
 
-CREATE TABLE play (
-    id_pl         INTEGER NOT NULL,
-    name_pl       VARCHAR2(32 CHAR) NOT NULL,
-    duration_pl   VARCHAR2(32 CHAR) NOT NULL,
-    year_pl       INTEGER NOT NULL
+-- Create Diagnosis table (now references appointmentID)
+CREATE TABLE Diagnosis (
+    diagnosisID INTEGER NOT NULL,
+    diseaseName VARCHAR(64),
+    notes VARCHAR(256),
+    Appointment_appointmentID INTEGER NOT NULL
 );
 
-ALTER TABLE play ADD CONSTRAINT play_pk PRIMARY KEY ( id_pl );
+ALTER TABLE Diagnosis 
+    ADD CONSTRAINT Diagnosis_PK PRIMARY KEY (diagnosisID);
 
-CREATE TABLE scene (
-    id_sc           INTEGER NOT NULL,
-    name_sc         VARCHAR2(32 CHAR) NOT NULL,
-    numofseats_sc   INTEGER NOT NULL,
-    theatre_id_th   INTEGER NOT NULL
+-- Create Medication table
+CREATE TABLE Medication (
+    medID INTEGER NOT NULL,
+    medName VARCHAR(64) NOT NULL
 );
 
-ALTER TABLE scene ADD CONSTRAINT scene_pk PRIMARY KEY ( id_sc );
+ALTER TABLE Medication 
+    ADD CONSTRAINT Medication_PK PRIMARY KEY (medID);
 
-CREATE TABLE showing (
-    ordnum_sh      INTEGER NOT NULL,
-    date_sh        DATE NOT NULL,
-    time_sh        DATE NOT NULL,
-    numofspec_sh   INTEGER NOT NULL,
-    play_id_pl     INTEGER NOT NULL,
-    scene_id_sc    INTEGER NOT NULL
+-- Create Prescribed table (many-to-many between Medication and Diagnosis)
+CREATE TABLE Prescribed (
+    Medication_medID INTEGER NOT NULL,
+    Diagnosis_diagnosisID INTEGER NOT NULL
 );
 
-ALTER TABLE showing ADD CONSTRAINT showing_pk PRIMARY KEY ( ordnum_sh );
+ALTER TABLE Prescribed 
+    ADD CONSTRAINT Prescribed_PK PRIMARY KEY (Medication_medID, Diagnosis_diagnosisID);
 
-CREATE TABLE technician (
-    id_em       INTEGER NOT NULL,
-    aptype_tc   VARCHAR2(32 CHAR) NOT NULL
+-- Create SideEffect table
+CREATE TABLE SideEffect (
+    sideEffectID INTEGER NOT NULL,
+    description VARCHAR(64) NOT NULL
 );
 
-ALTER TABLE technician ADD CONSTRAINT technician_pk PRIMARY KEY ( id_em );
+ALTER TABLE SideEffect 
+    ADD CONSTRAINT SideEffect_PK PRIMARY KEY (sideEffectID);
 
-CREATE TABLE theatre (
-    id_th         INTEGER NOT NULL,
-    name_th       VARCHAR2(64 CHAR) NOT NULL,
-    address_th    VARCHAR2(64 CHAR) NOT NULL,
-    website_th    VARCHAR2(64 CHAR),
-    place_id_pl   INTEGER NOT NULL
+-- Create Vaccine table
+CREATE TABLE Vaccine (
+    vaccineID INTEGER NOT NULL,
+    diseaseName VARCHAR(64) NOT NULL
 );
 
-ALTER TABLE theatre ADD CONSTRAINT theatre_pk PRIMARY KEY ( id_th );
+ALTER TABLE Vaccine 
+    ADD CONSTRAINT Vaccine_PK PRIMARY KEY (vaccineID);
 
-CREATE TABLE theatremanager (
-    id_em         INTEGER NOT NULL,
-    profqual_tm   INTEGER NOT NULL
+-- Create PetVac table (many-to-many between Pet and Vaccine)
+CREATE TABLE PetVac (
+    Pet_petID INTEGER NOT NULL,
+    Vaccine_vaccineID INTEGER NOT NULL,
+    vaccinationDate DATE DEFAULT CURRENT_DATE
 );
 
-ALTER TABLE theatremanager ADD CONSTRAINT theatremanager_pk PRIMARY KEY ( id_em );
+ALTER TABLE PetVac 
+    ADD CONSTRAINT PetVac_PK PRIMARY KEY (Pet_petID, Vaccine_vaccineID);
 
-ALTER TABLE actor
-    ADD CONSTRAINT actor_theatre_fk FOREIGN KEY ( theatre_id_th )
-        REFERENCES theatre ( id_th );
+-- Create VacSideEff table (many-to-many between Vaccine and SideEffect)
+CREATE TABLE VacSideEff (
+    Vaccine_vaccineID INTEGER NOT NULL,
+    SideEffect_sideEffectID INTEGER NOT NULL
+);
 
-ALTER TABLE assignment
-    ADD CONSTRAINT assignment_actor_fk FOREIGN KEY ( actor_id_ac )
-        REFERENCES actor ( id_ac );
+ALTER TABLE VacSideEff 
+    ADD CONSTRAINT VacSideEff_PK PRIMARY KEY (Vaccine_vaccineID, SideEffect_sideEffectID);
 
-ALTER TABLE assignment
-    ADD CONSTRAINT assignment_role_fk FOREIGN KEY ( role_id_ro )
-        REFERENCES role ( id_ro );
+-- Create GenPredisp table (Genetic Predisposition)
+CREATE TABLE GenPredisp (
+    GP_ID INTEGER NOT NULL,
+    diseaseName VARCHAR(64) NOT NULL,
+    geneticMarker VARCHAR(64),
+    genID INTEGER NOT NULL
+);
 
-ALTER TABLE department
-    ADD CONSTRAINT department_theatre_fk FOREIGN KEY ( theatre_id_th )
-        REFERENCES theatre ( id_th );
+ALTER TABLE GenPredisp 
+    ADD CONSTRAINT GenPredisp_PK PRIMARY KEY (diseaseName, genID);
 
-ALTER TABLE employee
-    ADD CONSTRAINT employee_department_fk FOREIGN KEY ( department_id_dpt )
-        REFERENCES department ( id_dpt );
+-- Create BreedGen table (many-to-many between Breed and GenPredisp)
+CREATE TABLE BreedGen (
+    Breed_breedID INTEGER NOT NULL,
+    GenPredisp_diseaseName VARCHAR(64),
+    GenPredisp_GP_ID INTEGER NOT NULL,
+    GenPredisp_genID INTEGER NOT NULL,
+    riskLevel VARCHAR(16) NOT NULL CHECK (riskLevel IN ('Low', 'Medium', 'High'))
+);
 
-ALTER TABLE role
-    ADD CONSTRAINT role_play_fk FOREIGN KEY ( play_id_pl )
-        REFERENCES play ( id_pl );
+ALTER TABLE BreedGen 
+    ADD CONSTRAINT BreedGen_PKv2 PRIMARY KEY (Breed_breedID, GenPredisp_genID);
 
-ALTER TABLE place
-    ADD CONSTRAINT place_country_fk FOREIGN KEY ( country_id_cn )
-        REFERENCES country ( id_cn );
+ALTER TABLE BreedGen 
+    ADD CONSTRAINT BreedGen_PK UNIQUE (Breed_breedID, GenPredisp_GP_ID);
 
-ALTER TABLE scene
-    ADD CONSTRAINT scene_theatre_fk FOREIGN KEY ( theatre_id_th )
-        REFERENCES theatre ( id_th );
+-- Add Foreign Key Constraints
+ALTER TABLE Pet 
+    ADD CONSTRAINT Pet_Owner_FK FOREIGN KEY (Owner_ownerID) 
+    REFERENCES Owner (ownerID) ON DELETE SET NULL;
 
-ALTER TABLE showing
-    ADD CONSTRAINT showing_play_fk FOREIGN KEY ( play_id_pl )
-        REFERENCES play ( id_pl );
+ALTER TABLE Pet 
+    ADD CONSTRAINT Pet_Breed_FK FOREIGN KEY (Breed_breedID) 
+    REFERENCES Breed (breedID);
 
-ALTER TABLE showing
-    ADD CONSTRAINT showing_scene_fk FOREIGN KEY ( scene_id_sc )
-        REFERENCES scene ( id_sc );
+ALTER TABLE Dog 
+    ADD CONSTRAINT Dog_Pet_FK FOREIGN KEY (petID) 
+    REFERENCES Pet (petID) ON DELETE CASCADE;
 
-ALTER TABLE technician
-    ADD CONSTRAINT technician_employee_fk FOREIGN KEY ( id_em )
-        REFERENCES employee ( id_em );
+ALTER TABLE Cat 
+    ADD CONSTRAINT Cat_Pet_FK FOREIGN KEY (petID) 
+    REFERENCES Pet (petID) ON DELETE CASCADE;
 
-ALTER TABLE theatre
-    ADD CONSTRAINT theatre_place_fk FOREIGN KEY ( place_id_pl )
-        REFERENCES place ( id_pl );
+ALTER TABLE Veterinarian 
+    ADD CONSTRAINT Veterinarian_Veterinarian_FK FOREIGN KEY (Veterinarian_VetID) 
+    REFERENCES Veterinarian (VetID);
 
-ALTER TABLE theatremanager
-    ADD CONSTRAINT theatremanager_employee_fk FOREIGN KEY ( id_em )
-        REFERENCES employee ( id_em );
+ALTER TABLE Appointment 
+    ADD CONSTRAINT Appointment_Pet_FK FOREIGN KEY (Pet_petID) 
+    REFERENCES Pet (petID) ON DELETE CASCADE;
+
+ALTER TABLE Appointment 
+    ADD CONSTRAINT Appointment_Veterinarian_FK FOREIGN KEY (Veterinarian_VetID) 
+    REFERENCES Veterinarian (VetID);
+
+-- Diagnosis now references appointmentID instead of composite key
+ALTER TABLE Diagnosis 
+    ADD CONSTRAINT Diagnosis_Appointment_FK FOREIGN KEY (Appointment_appointmentID) 
+    REFERENCES Appointment (appointmentID) ON DELETE CASCADE;
+
+ALTER TABLE Prescribed 
+    ADD CONSTRAINT Prescribed_Medication_FK FOREIGN KEY (Medication_medID) 
+    REFERENCES Medication (medID);
+
+ALTER TABLE Prescribed 
+    ADD CONSTRAINT Prescribed_Diagnosis_FK FOREIGN KEY (Diagnosis_diagnosisID) 
+    REFERENCES Diagnosis (diagnosisID) ON DELETE CASCADE;
+
+ALTER TABLE PetVac 
+    ADD CONSTRAINT PetVac_Pet_FK FOREIGN KEY (Pet_petID) 
+    REFERENCES Pet (petID) ON DELETE CASCADE;
+
+ALTER TABLE PetVac 
+    ADD CONSTRAINT PetVac_Vaccine_FK FOREIGN KEY (Vaccine_vaccineID) 
+    REFERENCES Vaccine (vaccineID);
+
+ALTER TABLE VacSideEff 
+    ADD CONSTRAINT VacSideEff_Vaccine_FK FOREIGN KEY (Vaccine_vaccineID) 
+    REFERENCES Vaccine (vaccineID);
+
+ALTER TABLE VacSideEff 
+    ADD CONSTRAINT VacSideEff_SideEffect_FK FOREIGN KEY (SideEffect_sideEffectID) 
+    REFERENCES SideEffect (sideEffectID);
+
+ALTER TABLE BreedGen 
+    ADD CONSTRAINT BreedGen_Breed_FK FOREIGN KEY (Breed_breedID) 
+    REFERENCES Breed (breedID);
+
+ALTER TABLE BreedGen 
+    ADD CONSTRAINT BreedGen_GenPredisp_FK FOREIGN KEY (GenPredisp_diseaseName, GenPredisp_genID) 
+    REFERENCES GenPredisp (diseaseName, genID);
+
+-- Create indexes for better performance
+CREATE INDEX idx_pet_owner ON Pet(Owner_ownerID);
+CREATE INDEX idx_pet_breed ON Pet(Breed_breedID);
+CREATE INDEX idx_pet_species ON Pet(species);
+CREATE INDEX idx_appointment_pet ON Appointment(Pet_petID);
+CREATE INDEX idx_appointment_vet ON Appointment(Veterinarian_VetID);
+CREATE INDEX idx_appointment_date ON Appointment(appDateTime);
+CREATE INDEX idx_diagnosis_appointment ON Diagnosis(Appointment_appointmentID);
+CREATE INDEX idx_petvac_pet ON PetVac(Pet_petID);
+CREATE INDEX idx_petvac_vaccine ON PetVac(Vaccine_vaccineID);
+
+-- Add triggers for inheritance constraint validation
+CREATE OR REPLACE FUNCTION validate_dog_inheritance() 
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM Pet 
+        WHERE petID = NEW.petID AND species = 'Dog'
+    ) THEN
+        RAISE EXCEPTION 'Pet must be a Dog to insert into Dog table';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_dog_inheritance
+    BEFORE INSERT OR UPDATE ON Dog
+    FOR EACH ROW EXECUTE FUNCTION validate_dog_inheritance();
+
+CREATE OR REPLACE FUNCTION validate_cat_inheritance() 
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM Pet 
+        WHERE petID = NEW.petID AND species = 'Cat'
+    ) THEN
+        RAISE EXCEPTION 'Pet must be a Cat to insert into Cat table';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_cat_inheritance
+    BEFORE INSERT OR UPDATE ON Cat
+    FOR EACH ROW EXECUTE FUNCTION validate_cat_inheritance();

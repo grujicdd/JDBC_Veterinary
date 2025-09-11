@@ -20,15 +20,17 @@ public class AppointmentUIHandler {
             System.out.println("\n=== APPOINTMENT MANAGEMENT ===");
             System.out.println("Select an option:");
             System.out.println("1 - Show all appointments");
-            System.out.println("2 - Show appointments by pet ID");
-            System.out.println("3 - Show appointments by veterinarian ID");
-            System.out.println("4 - Add new appointment");
-            System.out.println("5 - Update appointment");
-            System.out.println("6 - Delete appointment");
-            System.out.println("7 - Show appointments by date range");
-            System.out.println("8 - Search appointments by reason");
-            System.out.println("9 - Show appointments with diagnoses");
-            System.out.println("10 - Show appointment statistics");
+            System.out.println("2 - Show appointment by ID");
+            System.out.println("3 - Show appointments by pet ID");
+            System.out.println("4 - Show appointments by veterinarian ID");
+            System.out.println("5 - Add new appointment");
+            System.out.println("6 - Update appointment");
+            System.out.println("7 - Delete appointment");
+            System.out.println("8 - Show appointments by date range");
+            System.out.println("9 - Search appointments by reason");
+            System.out.println("10 - Show appointments between specific pet and vet");
+            System.out.println("11 - Show appointments with diagnoses");
+            System.out.println("12 - Show appointment statistics");
             System.out.println("X - Return to main menu");
             System.out.print("Your choice: ");
 
@@ -39,30 +41,36 @@ public class AppointmentUIHandler {
                 showAll();
                 break;
             case "2":
-                showByPetID();
+                showById();
                 break;
             case "3":
-                showByVetID();
+                showByPetID();
                 break;
             case "4":
-                addAppointment();
+                showByVetID();
                 break;
             case "5":
-                updateAppointment();
+                addAppointment();
                 break;
             case "6":
-                deleteAppointment();
+                updateAppointment();
                 break;
             case "7":
-                showByDateRange();
+                deleteAppointment();
                 break;
             case "8":
-                searchByReason();
+                showByDateRange();
                 break;
             case "9":
-                showAppointmentsWithDiagnoses();
+                searchByReason();
                 break;
             case "10":
+                showByPetAndVet();
+                break;
+            case "11":
+                showAppointmentsWithDiagnoses();
+                break;
+            case "12":
                 showStatistics();
                 break;
             case "x":
@@ -78,7 +86,7 @@ public class AppointmentUIHandler {
     private void showAll() {
         System.out.println("\n=== ALL APPOINTMENTS ===");
         System.out.println(Appointment.getFormattedHeader());
-        System.out.println("─────────────────────────────────────────────────────────────────────────────────");
+        System.out.println("─────────────────────────────────────────────────────────────────────────────────────────");
 
         try {
             List<Appointment> appointments = appointmentService.getAll();
@@ -94,6 +102,26 @@ public class AppointmentUIHandler {
         }
     }
 
+    private void showById() {
+        System.out.print("Enter Appointment ID: ");
+        try {
+            int id = Integer.parseInt(MainUIHandler.sc.nextLine());
+            Appointment appointment = appointmentService.findById(id);
+            
+            if (appointment != null) {
+                System.out.println("\n" + Appointment.getFormattedHeader());
+                System.out.println("─────────────────────────────────────────────────────────────────────────────────────────");
+                System.out.println(appointment);
+            } else {
+                System.out.println("Appointment with ID " + id + " not found.");
+            }
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid ID format. Please enter a number.");
+        } catch (SQLException e) {
+            System.err.println("Error retrieving appointment: " + e.getMessage());
+        }
+    }
+
     private void showByPetID() {
         System.out.print("Enter Pet ID: ");
         try {
@@ -105,7 +133,7 @@ public class AppointmentUIHandler {
             } else {
                 System.out.println("\n=== APPOINTMENTS FOR PET ID " + petID + " ===");
                 System.out.println(Appointment.getFormattedHeader());
-                System.out.println("─────────────────────────────────────────────────────────────────────────────────");
+                System.out.println("─────────────────────────────────────────────────────────────────────────────────────────");
                 for (Appointment appointment : appointments) {
                     System.out.println(appointment);
                 }
@@ -128,7 +156,7 @@ public class AppointmentUIHandler {
             } else {
                 System.out.println("\n=== APPOINTMENTS FOR VETERINARIAN ID " + vetID + " ===");
                 System.out.println(Appointment.getFormattedHeader());
-                System.out.println("─────────────────────────────────────────────────────────────────────────────────");
+                System.out.println("─────────────────────────────────────────────────────────────────────────────────────────");
                 for (Appointment appointment : appointments) {
                     System.out.println(appointment);
                 }
@@ -150,18 +178,6 @@ public class AppointmentUIHandler {
             System.out.print("Enter Veterinarian ID: ");
             int vetID = Integer.parseInt(MainUIHandler.sc.nextLine());
             
-            // Check if appointment already exists
-            Appointment existing = appointmentService.findByPetAndVet(petID, vetID);
-            if (existing != null) {
-                System.out.println("Appointment already exists for Pet " + petID + " and Veterinarian " + vetID);
-                System.out.println("Current appointment: " + existing);
-                System.out.print("Do you want to update it instead? (y/N): ");
-                String response = MainUIHandler.sc.nextLine();
-                if (!response.equalsIgnoreCase("y")) {
-                    return;
-                }
-            }
-            
             System.out.print("Enter appointment date and time (dd.MM.yyyy HH:mm): ");
             String dateTimeStr = MainUIHandler.sc.nextLine();
             Date appointmentDateTime;
@@ -173,15 +189,21 @@ public class AppointmentUIHandler {
                 return;
             }
             
+            // Check if appointment can be scheduled (business rule)
+            if (!appointmentService.canScheduleAppointment(petID, vetID, appointmentDateTime)) {
+                System.out.println("Cannot schedule appointment: Too close to existing appointment (must be at least 24 hours apart)");
+                return;
+            }
+            
             System.out.print("Enter reason for appointment: ");
             String reason = MainUIHandler.sc.nextLine();
             
             Appointment appointment = new Appointment(petID, vetID, appointmentDateTime, reason);
             
             if (appointmentService.save(appointment)) {
-                System.out.println("Appointment " + (existing != null ? "updated" : "added") + " successfully!");
+                System.out.println("Appointment added successfully! Appointment ID: " + appointment.getAppointmentID());
             } else {
-                System.out.println("Failed to " + (existing != null ? "update" : "add") + " appointment.");
+                System.out.println("Failed to add appointment.");
             }
             
         } catch (NumberFormatException e) {
@@ -195,21 +217,32 @@ public class AppointmentUIHandler {
         System.out.println("\n=== UPDATE APPOINTMENT ===");
         
         try {
-            System.out.print("Enter Pet ID: ");
-            int petID = Integer.parseInt(MainUIHandler.sc.nextLine());
+            System.out.print("Enter Appointment ID to update: ");
+            int appointmentID = Integer.parseInt(MainUIHandler.sc.nextLine());
             
-            System.out.print("Enter Veterinarian ID: ");
-            int vetID = Integer.parseInt(MainUIHandler.sc.nextLine());
-            
-            Appointment existing = appointmentService.findByPetAndVet(petID, vetID);
+            Appointment existing = appointmentService.findById(appointmentID);
             if (existing == null) {
-                System.out.println("No appointment found for Pet " + petID + " and Veterinarian " + vetID);
+                System.out.println("No appointment found with ID " + appointmentID);
                 return;
             }
             
             System.out.println("Current appointment details:");
             System.out.println(Appointment.getFormattedHeader());
             System.out.println(existing);
+            
+            System.out.print("Enter new Pet ID (current: " + existing.getPetID() + "): ");
+            String petIDStr = MainUIHandler.sc.nextLine();
+            int petID = existing.getPetID();
+            if (!petIDStr.trim().isEmpty()) {
+                petID = Integer.parseInt(petIDStr);
+            }
+            
+            System.out.print("Enter new Veterinarian ID (current: " + existing.getVetID() + "): ");
+            String vetIDStr = MainUIHandler.sc.nextLine();
+            int vetID = existing.getVetID();
+            if (!vetIDStr.trim().isEmpty()) {
+                vetID = Integer.parseInt(vetIDStr);
+            }
             
             System.out.print("Enter new date and time (dd.MM.yyyy HH:mm) (current: " + 
                            dateTimeFormat.format(existing.getAppDateTime()) + "): ");
@@ -231,7 +264,7 @@ public class AppointmentUIHandler {
                 reason = existing.getReason();
             }
             
-            Appointment updatedAppointment = new Appointment(petID, vetID, appointmentDateTime, reason);
+            Appointment updatedAppointment = new Appointment(appointmentID, petID, vetID, appointmentDateTime, reason);
             
             if (appointmentService.save(updatedAppointment)) {
                 System.out.println("Appointment updated successfully!");
@@ -250,15 +283,12 @@ public class AppointmentUIHandler {
         System.out.println("\n=== DELETE APPOINTMENT ===");
         
         try {
-            System.out.print("Enter Pet ID: ");
-            int petID = Integer.parseInt(MainUIHandler.sc.nextLine());
+            System.out.print("Enter Appointment ID to delete: ");
+            int appointmentID = Integer.parseInt(MainUIHandler.sc.nextLine());
             
-            System.out.print("Enter Veterinarian ID: ");
-            int vetID = Integer.parseInt(MainUIHandler.sc.nextLine());
-            
-            Appointment appointment = appointmentService.findByPetAndVet(petID, vetID);
+            Appointment appointment = appointmentService.findById(appointmentID);
             if (appointment == null) {
-                System.out.println("No appointment found for Pet " + petID + " and Veterinarian " + vetID);
+                System.out.println("No appointment found with ID " + appointmentID);
                 return;
             }
             
@@ -270,7 +300,7 @@ public class AppointmentUIHandler {
             String confirmation = MainUIHandler.sc.nextLine();
             
             if (confirmation.equalsIgnoreCase("y") || confirmation.equalsIgnoreCase("yes")) {
-                if (appointmentService.deleteByPetAndVet(petID, vetID)) {
+                if (appointmentService.deleteById(appointmentID)) {
                     System.out.println("Appointment deleted successfully!");
                 } else {
                     System.out.println("Failed to delete appointment. It may have related diagnoses.");
@@ -280,7 +310,7 @@ public class AppointmentUIHandler {
             }
             
         } catch (NumberFormatException e) {
-            System.err.println("Invalid ID format. Please enter valid numbers.");
+            System.err.println("Invalid ID format. Please enter a valid number.");
         } catch (SQLException e) {
             System.err.println("Error deleting appointment: " + e.getMessage());
         }
@@ -310,7 +340,7 @@ public class AppointmentUIHandler {
             } else {
                 System.out.println("Found " + appointments.size() + " appointments:");
                 System.out.println(Appointment.getFormattedHeader());
-                System.out.println("─────────────────────────────────────────────────────────────────────────────────");
+                System.out.println("─────────────────────────────────────────────────────────────────────────────────────────");
                 for (Appointment appointment : appointments) {
                     System.out.println(appointment);
                 }
@@ -335,13 +365,44 @@ public class AppointmentUIHandler {
             } else {
                 System.out.println("\n=== APPOINTMENTS WITH REASON CONTAINING: " + reason + " ===");
                 System.out.println(Appointment.getFormattedHeader());
-                System.out.println("─────────────────────────────────────────────────────────────────────────────────");
+                System.out.println("─────────────────────────────────────────────────────────────────────────────────────────");
                 for (Appointment appointment : appointments) {
                     System.out.println(appointment);
                 }
             }
         } catch (SQLException e) {
             System.err.println("Error searching appointments: " + e.getMessage());
+        }
+    }
+
+    private void showByPetAndVet() {
+        System.out.println("\n=== APPOINTMENTS BETWEEN SPECIFIC PET AND VETERINARIAN ===");
+        
+        try {
+            System.out.print("Enter Pet ID: ");
+            int petID = Integer.parseInt(MainUIHandler.sc.nextLine());
+            
+            System.out.print("Enter Veterinarian ID: ");
+            int vetID = Integer.parseInt(MainUIHandler.sc.nextLine());
+            
+            List<Appointment> appointments = appointmentService.findByPetAndVet(petID, vetID);
+            
+            if (appointments.isEmpty()) {
+                System.out.println("No appointments found between Pet ID " + petID + " and Veterinarian ID " + vetID);
+            } else {
+                System.out.println("\n=== APPOINTMENTS BETWEEN PET " + petID + " AND VETERINARIAN " + vetID + " ===");
+                System.out.println("Total appointments: " + appointments.size());
+                System.out.println(Appointment.getFormattedHeader());
+                System.out.println("─────────────────────────────────────────────────────────────────────────────────────────");
+                for (Appointment appointment : appointments) {
+                    System.out.println(appointment);
+                }
+            }
+            
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid ID format. Please enter valid numbers.");
+        } catch (SQLException e) {
+            System.err.println("Error retrieving appointments: " + e.getMessage());
         }
     }
 
@@ -354,7 +415,7 @@ public class AppointmentUIHandler {
             } else {
                 System.out.println("\n=== APPOINTMENTS WITH DIAGNOSES ===");
                 System.out.println(Appointment.getFormattedHeader());
-                System.out.println("─────────────────────────────────────────────────────────────────────────────────");
+                System.out.println("─────────────────────────────────────────────────────────────────────────────────────────");
                 for (Appointment appointment : appointments) {
                     System.out.println(appointment);
                 }

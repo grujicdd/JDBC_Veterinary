@@ -3,6 +3,7 @@ package rs.ac.uns.ftn.db.jdbc.veterinary.model;
 import java.util.Date;
 
 public class Appointment {
+    private int appointmentID;
     private int petID;
     private int vetID;
     private Date appDateTime;
@@ -12,6 +13,15 @@ public class Appointment {
         super();
     }
 
+    public Appointment(int appointmentID, int petID, int vetID, Date appDateTime, String reason) {
+        this.appointmentID = appointmentID;
+        this.petID = petID;
+        this.vetID = vetID;
+        this.appDateTime = appDateTime;
+        this.reason = reason;
+    }
+
+    // Constructor without appointmentID for inserts (auto-generated)
     public Appointment(int petID, int vetID, Date appDateTime, String reason) {
         this.petID = petID;
         this.vetID = vetID;
@@ -20,6 +30,14 @@ public class Appointment {
     }
 
     // Getters and Setters
+    public int getAppointmentID() {
+        return appointmentID;
+    }
+
+    public void setAppointmentID(int appointmentID) {
+        this.appointmentID = appointmentID;
+    }
+
     public int getPetID() {
         return petID;
     }
@@ -54,21 +72,22 @@ public class Appointment {
 
     @Override
     public String toString() {
-        return String.format("%-8d %-8d %-20s %-30s", 
-            petID, vetID, 
+        return String.format("%-8d %-8d %-8d %-20s %-30s", 
+            appointmentID, petID, vetID, 
             appDateTime != null ? appDateTime.toString() : "N/A", 
             reason != null ? reason : "N/A");
     }
 
     public static String getFormattedHeader() {
-        return String.format("%-8s %-8s %-20s %-30s", 
-            "PET ID", "VET ID", "DATE & TIME", "REASON");
+        return String.format("%-8s %-8s %-8s %-20s %-30s", 
+            "APPT ID", "PET ID", "VET ID", "DATE & TIME", "REASON");
     }
 
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
+        result = prime * result + appointmentID;
         result = prime * result + petID;
         result = prime * result + vetID;
         result = prime * result + ((appDateTime == null) ? 0 : appDateTime.hashCode());
@@ -85,6 +104,8 @@ public class Appointment {
         if (getClass() != obj.getClass())
             return false;
         Appointment other = (Appointment) obj;
+        if (appointmentID != other.appointmentID)
+            return false;
         if (petID != other.petID)
             return false;
         if (vetID != other.vetID)

@@ -15,12 +15,12 @@ public class AppointmentService {
         return appointmentDAO.save(appointment);
     }
 
-    public boolean deleteByPetAndVet(int petID, int vetID) throws SQLException {
-        return appointmentDAO.deleteByPetAndVet(petID, vetID);
+    public boolean deleteById(int appointmentID) throws SQLException {
+        return appointmentDAO.deleteById(appointmentID);
     }
 
-    public Appointment findByPetAndVet(int petID, int vetID) throws SQLException {
-        return appointmentDAO.findByPetAndVet(petID, vetID);
+    public Appointment findById(int appointmentID) throws SQLException {
+        return appointmentDAO.findById(appointmentID);
     }
 
     public List<Appointment> getAll() throws SQLException {
@@ -49,5 +49,37 @@ public class AppointmentService {
 
     public List<Appointment> findAppointmentsWithDiagnosis() throws SQLException {
         return appointmentDAO.findAppointmentsWithDiagnosis();
+    }
+
+    // New methods for the updated schema
+    public boolean existsByPetAndVet(int petID, int vetID) throws SQLException {
+        return appointmentDAO.existsByPetAndVet(petID, vetID);
+    }
+
+    public List<Appointment> findByPetAndVet(int petID, int vetID) throws SQLException {
+        return appointmentDAO.findByPetAndVet(petID, vetID);
+    }
+
+    // Convenience method to get the most recent appointment for a pet-vet combination
+    public Appointment findMostRecentByPetAndVet(int petID, int vetID) throws SQLException {
+        List<Appointment> appointments = appointmentDAO.findByPetAndVet(petID, vetID);
+        return appointments.isEmpty() ? null : appointments.get(0); // First one is most recent due to ORDER BY
+    }
+
+    // Business logic method to check if a pet can have another appointment with the same vet
+    public boolean canScheduleAppointment(int petID, int vetID, Date proposedDateTime) throws SQLException {
+        List<Appointment> existingAppointments = findByPetAndVet(petID, vetID);
+        
+        // Business rule: no appointments within 24 hours of each other for same pet-vet combination
+        long oneDayInMillis = 24 * 60 * 60 * 1000;
+        
+        for (Appointment existing : existingAppointments) {
+            long timeDifference = Math.abs(existing.getAppDateTime().getTime() - proposedDateTime.getTime());
+            if (timeDifference < oneDayInMillis) {
+                return false; // Too close to existing appointment
+            }
+        }
+        
+        return true;
     }
 }
