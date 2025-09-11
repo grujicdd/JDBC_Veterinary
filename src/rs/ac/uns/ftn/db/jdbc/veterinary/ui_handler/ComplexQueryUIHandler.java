@@ -14,11 +14,10 @@ public class ComplexQueryUIHandler {
             System.out.println("\n=== COMPLEX QUERIES & REPORTS ===");
             System.out.println("Select a functionality:");
             System.out.println();
-            System.out.println("1  - Show all owners and their pets.");
-            System.out.println();
+            System.out.println("1 - Show all owners and their pets");
             System.out.println("2 - Show active veterinarians workload analysis");
-            System.out.println();
             System.out.println("3 - Show veterinarian workload and hierarchy report");
+            System.out.println("4 - Transfer pet ownership (Complex Transaction)");
             System.out.println();
             System.out.println("X - Return to main menu");
             System.out.print("Your choice: ");
@@ -34,6 +33,9 @@ public class ComplexQueryUIHandler {
                 break;
             case "3":
                 showVeterinarianWorkloadReport();
+                break;
+            case "4":
+                transferPetOwnership();
                 break;
             case "x":
             case "X":
@@ -54,38 +56,6 @@ public class ComplexQueryUIHandler {
         }
     }
 
-    public void showAppointmentReport() {
-        try {
-            System.out.println("TODO: Implement complex query 2 - Appointment report with diagnoses");
-        } catch (Exception e) {
-            System.err.println("Error executing query: " + e.getMessage());
-        }
-    }
-
-    public void showPetsWithGeneticRisks() {
-        try {
-            System.out.println("TODO: Implement complex query 3 - Pets with genetic risks and vaccination history");
-        } catch (Exception e) {
-            System.err.println("Error executing query: " + e.getMessage());
-        }
-    }
-
-    public void showMostFrequentlyVisitingPets() {
-        try {
-            System.out.println("TODO: Implement complex query 4 - Most frequently visiting pets");
-        } catch (Exception e) {
-            System.err.println("Error executing query: " + e.getMessage());
-        }
-    }
-
-    public void handleAppointmentRebalancing() {
-        try {
-            System.out.println("TODO: Implement complex query 5 - Appointment rebalancing");
-        } catch (Exception e) {
-            System.err.println("Error executing query: " + e.getMessage());
-        }
-    }
-
     public void showActiveVeterinariansWorkloadAnalysis() {
         try {
             complexQueryService.getActiveVeterinariansWorkloadAnalysis();
@@ -100,6 +70,20 @@ public class ComplexQueryUIHandler {
             complexQueryService.getVeterinarianWorkloadReport();
         } catch (SQLException e) {
             System.err.println("Error executing veterinarian workload report: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void transferPetOwnership() {
+        try {
+            complexQueryService.transferPetOwnership();
+        } catch (SQLException e) {
+            System.err.println("Error executing pet ownership transfer: " + e.getMessage());
+            e.printStackTrace();
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid input format. Please enter valid numbers for Pet ID and Owner ID.");
+        } catch (Exception e) {
+            System.err.println("Unexpected error during pet ownership transfer: " + e.getMessage());
             e.printStackTrace();
         }
     }

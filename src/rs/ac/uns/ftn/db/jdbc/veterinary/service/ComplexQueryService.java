@@ -10,6 +10,13 @@ import java.util.List;
 import java.util.Map;
 
 import rs.ac.uns.ftn.db.jdbc.veterinary.connection.ConnectionUtil_HikariCP;
+import rs.ac.uns.ftn.db.jdbc.veterinary.dto.complexquery1.OwnerWithPetsDTO;
+import rs.ac.uns.ftn.db.jdbc.veterinary.dto.complexquery1.PetInfoDTO;
+import rs.ac.uns.ftn.db.jdbc.veterinary.dto.complexquery2.ComplexVetAnalysisDTO;
+import rs.ac.uns.ftn.db.jdbc.veterinary.dto.complexquery2.VetWorkloadDTO;
+import rs.ac.uns.ftn.db.jdbc.veterinary.model.Owner;
+import rs.ac.uns.ftn.db.jdbc.veterinary.model.Pet;
+import rs.ac.uns.ftn.db.jdbc.veterinary.ui_handler.MainUIHandler;
 
 /**
  * Service class for handling complex queries and business logic
@@ -161,7 +168,8 @@ public class ComplexQueryService {
             double avgPetAge = analysisResults.stream().mapToDouble(ComplexVetAnalysisDTO::getAvgPetAge).average().orElse(0.0);
             int heavyWorkload = (int) analysisResults.stream().filter(v -> v.getWorkloadCategory().contains("Heavy")).count();
             
-                
+            System.out.printf("SUMMARY: %d vets analyzed | %.1f avg appointments | %.1f avg pet age | %d heavy workload%n",
+                totalVetsAnalyzed, avgAppointments, avgPetAge, heavyWorkload);
         } else {
             System.out.println("No veterinarians found matching the criteria.");
             System.out.println("(This query requires vets with 2+ appointments for pets born after 2015)");
@@ -234,159 +242,243 @@ public class ComplexQueryService {
             totalVets, supervisors, heavyWorkload, avgAppointments);
     }
     
-    // DTO Classes
-    public static class OwnerWithPetsDTO {
-        private int ownerID;
-        private String firstName;
-        private String lastName;
-        private String phoneNumber;
-        private java.util.Date birthDate;
-        private List<PetInfoDTO> pets;
+    /**
+     * Complex Transaction: Transfer pet ownership from one owner to another
+     * This affects multiple tables and maintains data integrity using transactions
+     */
+    public void transferPetOwnership() throws SQLException {
+        System.out.println("\n=== PET OWNERSHIP TRANSFER TRANSACTION ===");
+        System.out.println("This complex transaction will:");
+        System.out.println("1. Validate pet and owners exist");
+        System.out.println("2. Update pet ownership in Pet table");
+        System.out.println("3. Check and update future appointments");
+        System.out.println("4. Create transfer appointment and log entry");
+        System.out.println("=" .repeat(80));
         
-        public OwnerWithPetsDTO(int ownerID, String firstName, String lastName, String phoneNumber, java.util.Date birthDate) {
-            this.ownerID = ownerID;
-            this.firstName = firstName;
-            this.lastName = lastName;
-            this.phoneNumber = phoneNumber;
-            this.birthDate = birthDate;
-            this.pets = new ArrayList<>();
+        // Get input from user
+        System.out.print("Enter Pet ID to transfer: ");
+        int petID = Integer.parseInt(MainUIHandler.sc.nextLine());
+        
+        System.out.print("Enter new Owner ID: ");
+        int newOwnerID = Integer.parseInt(MainUIHandler.sc.nextLine());
+        
+        System.out.print("Enter reason for transfer: ");
+        String transferReason = MainUIHandler.sc.nextLine();
+        if (transferReason.trim().isEmpty()) {
+            transferReason = "Ownership transfer";
         }
         
-        public void addPet(PetInfoDTO pet) {
-            this.pets.add(pet);
-        }
+        Connection connection = null;
         
-        public void display() {
-            System.out.printf("Owner: %s %s (ID: %d) | Phone: %s%n", 
-                firstName, lastName, ownerID, phoneNumber);
+        try {
+            connection = ConnectionUtil_HikariCP.getConnection();
+            connection.setAutoCommit(false); // Start transaction
             
-            if (pets.isEmpty()) {
-                System.out.println("  Pets: NO PETS");
-            } else {
-                System.out.println("  Pets:");
-                for (PetInfoDTO pet : pets) {
-                    System.out.printf("    • %s (%s, %s, born %d)%n", 
-                        pet.getName(), pet.getSpecies(), pet.getBreedName(), pet.getBirthYear());
+            // Step 1: Validate pet exists and get current details
+            Pet pet = validateAndGetPet(connection, petID);
+            if (pet == null) {
+                System.out.println("ERROR: Pet with ID " + petID + " not found");
+                return;
+            }
+            
+            if (pet.getOwnerID() == null) {
+                System.out.println("ERROR: Pet has no current owner to transfer from");
+                return;
+            }
+            
+            if (pet.getOwnerID().equals(newOwnerID)) {
+                System.out.println("ERROR: Pet is already owned by owner " + newOwnerID);
+                return;
+            }
+            
+            // Get current owner details
+            Owner currentOwner = validateAndGetOwner(connection, pet.getOwnerID());
+            
+            // Step 2: Validate new owner exists
+            Owner newOwner = validateAndGetOwner(connection, newOwnerID);
+            if (newOwner == null) {
+                System.out.println("ERROR: New owner with ID " + newOwnerID + " not found");
+                return;
+            }
+            
+            System.out.printf("\nTransferring %s (ID: %d) from %s %s to %s %s%n",
+                pet.getName(), pet.getPetID(),
+                currentOwner.getFirstName(), currentOwner.getLastName(),
+                newOwner.getFirstName(), newOwner.getLastName());
+            
+            // Step 3: Check for future appointments that will be affected
+            int futureAppointments = countFutureAppointments(connection, petID);
+            if (futureAppointments > 0) {
+                System.out.printf("Note: %d future appointments will be updated with transfer information%n", futureAppointments);
+            }
+            
+            // Step 4: Update pet ownership
+            updatePetOwnership(connection, petID, newOwnerID);
+            System.out.println("✓ Updated pet ownership in Pet table");
+            
+            // Step 5: Update future appointments with transfer notes
+            int updatedAppointments = updateFutureAppointments(connection, petID, transferReason);
+            if (updatedAppointments > 0) {
+                System.out.printf("✓ Updated %d future appointments with transfer note%n", updatedAppointments);
+            }
+            
+            // Step 6: Create transfer appointment for new owner orientation
+            int transferAppointmentID = createTransferAppointment(connection, petID, transferReason);
+            System.out.printf("✓ Created transfer appointment (ID: %d) for new owner orientation%n", transferAppointmentID);
+            
+            // Commit transaction
+            connection.commit();
+            System.out.println("\n🎉 OWNERSHIP TRANSFER COMPLETED SUCCESSFULLY!");
+            
+            // Show final status
+            System.out.println("\nTransfer Summary:");
+            System.out.printf("  Pet: %s (ID: %d)%n", pet.getName(), pet.getPetID());
+            System.out.printf("  From: %s %s (ID: %d)%n", 
+                currentOwner.getFirstName(), currentOwner.getLastName(), currentOwner.getOwnerID());
+            System.out.printf("  To: %s %s (ID: %d)%n", 
+                newOwner.getFirstName(), newOwner.getLastName(), newOwner.getOwnerID());
+            System.out.printf("  Reason: %s%n", transferReason);
+            System.out.printf("  Appointments affected: %d%n", updatedAppointments);
+            System.out.printf("  Transfer appointment ID: %d%n", transferAppointmentID);
+            
+        } catch (SQLException e) {
+            // Rollback transaction on error
+            if (connection != null) {
+                try {
+                    connection.rollback();
+                    System.err.println("❌ TRANSACTION ROLLED BACK due to error: " + e.getMessage());
+                } catch (SQLException rollbackEx) {
+                    System.err.println("ERROR: Could not rollback transaction: " + rollbackEx.getMessage());
                 }
-                System.out.printf("  Total pets: %d%n", pets.size());
+            }
+            throw e;
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.setAutoCommit(true);
+                    connection.close();
+                } catch (SQLException e) {
+                    System.err.println("Error closing connection: " + e.getMessage());
+                }
             }
         }
-        
-        // Getters
-        public int getOwnerID() { return ownerID; }
-        public String getFirstName() { return firstName; }
-        public String getLastName() { return lastName; }
-        public List<PetInfoDTO> getPets() { return pets; }
     }
     
-    public static class PetInfoDTO {
-        private int petID;
-        private String name;
-        private int birthYear;
-        private String species;
-        private String breedName;
+    private Pet validateAndGetPet(Connection connection, int petID) throws SQLException {
+        String query = "SELECT petID, name, birthYear, species, Owner_ownerID, Breed_breedID FROM Pet WHERE petID = ?";
         
-        public PetInfoDTO(int petID, String name, int birthYear, String species, String breedName) {
-            this.petID = petID;
-            this.name = name;
-            this.birthYear = birthYear;
-            this.species = species;
-            this.breedName = breedName;
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setInt(1, petID);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new Pet(
+                        rs.getInt("petID"),
+                        rs.getString("name"),
+                        rs.getInt("birthYear"),
+                        rs.getString("species"),
+                        (Integer) rs.getObject("Owner_ownerID"),
+                        rs.getInt("Breed_breedID")
+                    );
+                }
+            }
         }
-        
-        // Getters
-        public int getPetID() { return petID; }
-        public String getName() { return name; }
-        public int getBirthYear() { return birthYear; }
-        public String getSpecies() { return species; }
-        public String getBreedName() { return breedName; }
+        return null;
     }
     
-    public static class VetWorkloadDTO {
-        private int vetID;
-        private String firstName;
-        private String lastName;
-        private String phoneNumber;
-        private String supervisorName;
-        private int appointmentCount;
-        private int subordinateCount;
-        private String workloadLevel;
+    private Owner validateAndGetOwner(Connection connection, int ownerID) throws SQLException {
+        String query = "SELECT ownerID, firstName, lastName, phoneNumber, birthDate FROM Owner WHERE ownerID = ?";
         
-        public VetWorkloadDTO(int vetID, String firstName, String lastName, String phoneNumber,
-                             String supervisorName, int appointmentCount, int subordinateCount, String workloadLevel) {
-            this.vetID = vetID;
-            this.firstName = firstName;
-            this.lastName = lastName;
-            this.phoneNumber = phoneNumber;
-            this.supervisorName = supervisorName;
-            this.appointmentCount = appointmentCount;
-            this.subordinateCount = subordinateCount;
-            this.workloadLevel = workloadLevel;
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setInt(1, ownerID);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new Owner(
+                        rs.getInt("ownerID"),
+                        rs.getString("firstName"),
+                        rs.getString("lastName"),
+                        rs.getString("phoneNumber"),
+                        rs.getDate("birthDate")
+                    );
+                }
+            }
         }
-        
-        public void display() {
-            System.out.printf("%-4d %-15s %-15s %-15s %-15s %-12d %-12d %-10s%n",
-                vetID, firstName, lastName, phoneNumber,
-                supervisorName != null ? supervisorName : "N/A",
-                appointmentCount, subordinateCount, workloadLevel);
-        }
-        
-        // Getters
-        public int getVetID() { return vetID; }
-        public String getFirstName() { return firstName; }
-        public String getLastName() { return lastName; }
-        public int getAppointmentCount() { return appointmentCount; }
-        public int getSubordinateCount() { return subordinateCount; }
-        public String getWorkloadLevel() { return workloadLevel; }
+        return null;
     }
-
-    public static class ComplexVetAnalysisDTO {
-        private int vetID;
-        private String firstName;
-        private String lastName;
-        private String phoneNumber;
-        private String supervisorName;
-        private int totalAppointments;
-        private int uniquePetsServed;
-        private int uniqueOwnersServed;
-        private int breedVariety;
-        private double avgPetAge;
-        private java.sql.Timestamp lastAppointmentDate;
-        private String workloadCategory;
+    
+    private int countFutureAppointments(Connection connection, int petID) throws SQLException {
+        String query = "SELECT COUNT(*) FROM Appointment WHERE Pet_petID = ? AND appDateTime > CURRENT_TIMESTAMP";
         
-        public ComplexVetAnalysisDTO(int vetID, String firstName, String lastName, String phoneNumber,
-                                   String supervisorName, int totalAppointments, int uniquePetsServed, 
-                                   int uniqueOwnersServed, int breedVariety, double avgPetAge,
-                                   java.sql.Timestamp lastAppointmentDate, String workloadCategory) {
-            this.vetID = vetID;
-            this.firstName = firstName;
-            this.lastName = lastName;
-            this.phoneNumber = phoneNumber;
-            this.supervisorName = supervisorName;
-            this.totalAppointments = totalAppointments;
-            this.uniquePetsServed = uniquePetsServed;
-            this.uniqueOwnersServed = uniqueOwnersServed;
-            this.breedVariety = breedVariety;
-            this.avgPetAge = avgPetAge;
-            this.lastAppointmentDate = lastAppointmentDate;
-            this.workloadCategory = workloadCategory;
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setInt(1, petID);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
         }
+        return 0;
+    }
+    
+    private void updatePetOwnership(Connection connection, int petID, int newOwnerID) throws SQLException {
+        String query = "UPDATE Pet SET Owner_ownerID = ? WHERE petID = ?";
         
-        public void display() {
-            System.out.printf("%-4d %-12s %-12s %-15s %-15s %-8d %-8d %-8d %-8d %-8.1f %-12s%n",
-                vetID, firstName, lastName,
-                supervisorName != null ? supervisorName : "N/A",
-                phoneNumber.length() > 15 ? phoneNumber.substring(0, 12) + "..." : phoneNumber,
-                totalAppointments, uniquePetsServed, uniqueOwnersServed, breedVariety, 
-                avgPetAge, workloadCategory);
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setInt(1, newOwnerID);
+            ps.setInt(2, petID);
+            
+            int rowsAffected = ps.executeUpdate();
+            if (rowsAffected != 1) {
+                throw new SQLException("Failed to update pet ownership - unexpected number of rows affected: " + rowsAffected);
+            }
         }
+    }
+    
+    private int updateFutureAppointments(Connection connection, int petID, String transferReason) throws SQLException {
+        String query = """
+            UPDATE Appointment 
+            SET reason = CASE 
+                WHEN reason IS NULL THEN 'Owner changed: ' || ?
+                ELSE reason || ' (Owner changed: ' || ? || ')'
+            END
+            WHERE Pet_petID = ? AND appDateTime > CURRENT_TIMESTAMP
+            """;
         
-        // Getters
-        public int getVetID() { return vetID; }
-        public String getFirstName() { return firstName; }
-        public String getLastName() { return lastName; }
-        public int getTotalAppointments() { return totalAppointments; }
-        public double getAvgPetAge() { return avgPetAge; }
-        public String getWorkloadCategory() { return workloadCategory; }
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setString(1, transferReason);
+            ps.setString(2, transferReason);
+            ps.setInt(3, petID);
+            
+            return ps.executeUpdate();
+        }
+    }
+    
+    private int createTransferAppointment(Connection connection, int petID, String transferReason) throws SQLException {
+        String query = """
+            INSERT INTO Appointment (Pet_petID, Veterinarian_VetID, appDateTime, reason) 
+            VALUES (?, 1, CURRENT_TIMESTAMP + INTERVAL '7 days', ?)
+            """;
+        
+        String appointmentReason = "New owner orientation meeting - " + transferReason;
+        
+        try (PreparedStatement ps = connection.prepareStatement(query, PreparedStatement.RETURN_GENERATED_KEYS)) {
+            ps.setInt(1, petID);
+            ps.setString(2, appointmentReason);
+            
+            int rowsAffected = ps.executeUpdate();
+            if (rowsAffected != 1) {
+                throw new SQLException("Failed to create transfer appointment");
+            }
+            
+            try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1);
+                } else {
+                    throw new SQLException("Failed to retrieve generated appointment ID");
+                }
+            }
+        }
     }
 }
